@@ -1,9 +1,14 @@
-const { app, BrowserWindow, Menu, ipcMain } = require('electron')
+const { app, BrowserWindow, Menu, Tray, ipcMain } = require('electron')
 const http = require('http')
 const path = require('path')
 
 const BACKEND = { host: '127.0.0.1', port: 8000 }
 const BACKEND_LABEL = `http://${BACKEND.host}:${BACKEND.port}`
+
+let mainWindow = null
+let tray = null
+// 只有它为 true 时关窗口才是真退出，否则一律收进托盘
+let quitting = false
 
 /**
  * 把后端的错误响应翻译成界面能看懂的一句话。
@@ -204,7 +209,60 @@ function createWindow() {
     event.preventDefault()
   })
 
+  // 点关闭只是收进托盘，真正退出走托盘菜单
+  win.on('close', (event) => {
+    if (quitting) return
+    event.preventDefault()
+    win.hide()
+  })
+
+  win.on('closed', () => {
+    mainWindow = null
+  })
+
   win.loadFile('index.html')
+  mainWindow = win
+  return win
+}
+
+function showWindow() {
+  if (!mainWindow) {
+    createWindow()
+    return
+  }
+  if (mainWindow.isMinimized()) mainWindow.restore()
+  mainWindow.show()
+  mainWindow.focus()
+}
+
+/**
+ * 托盘：右下角常驻图标，左键切换显示/隐藏，右键出菜单。
+ * 少了这段，程序就只是个普通窗口，装完哪都留不下痕迹。
+ */
+function createTray() {
+  tray = new Tray(path.join(__dirname, 'assets', 'tray.ico'))
+  tray.setToolTip('WY Agent')
+  tray.setContextMenu(
+    Menu.buildFromTemplate([
+      { label: '打开主界面', click: showWindow },
+      { type: 'separator' },
+      {
+        label: '退出',
+        click: () => {
+          quitting = true
+          app.quit()
+        }
+      }
+    ])
+  )
+
+  tray.on('click', () => {
+    if (mainWindow && mainWindow.isVisible() && !mainWindow.isMinimized()) {
+      mainWindow.hide()
+    } else {
+      showWindow()
+    }
+  })
 }
 
 // ---------- 基础信息 ----------
@@ -247,18 +305,30 @@ ipcMain.handle('agent:chat:stream', (event, { message, modelId, requestId }) => 
   })
 })
 
-app.whenReady().then(() => {
-  // 不显示窗口顶部的系统菜单栏（File / Edit / View / Window / Help）
-  Menu.setApplicationMenu(null)
-  createWindow()
-})
+// 再双击一次快捷方式时把已有窗口拉出来，而不是多开一个托盘图标
+const gotLock = app.requestSingleInstanceLock()
 
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit()
-  }
-})
+if (!gotLock) {
+  app.quit()
+} else {
+  app.on('second-instance', showWindow)
 
-app.on('activate', () => {
-  if (BrowserWindow.getAllWindows().length === 0) createWindow()
-})
+  app.whenReady().then(() => {
+    // 不显示窗口顶部的系统菜单栏（File / Edit / View / Window / Help）
+    Menu.setApplicationMenu(null)
+    createWindow()
+    createTray()
+  })
+
+  app.on('window-all-closed', () => {
+    if (process.platform !== 'darwin') {
+      app.quit()
+    }
+  })
+
+  app.on('activate', showWindow)
+
+  app.on('before-quit', () => {
+    quitting = true
+  })
+}
