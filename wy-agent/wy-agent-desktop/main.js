@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain } = require('electron')
+const { app, BrowserWindow, Menu, ipcMain } = require('electron')
 const http = require('http')
 const path = require('path')
 
@@ -193,6 +193,17 @@ function createWindow() {
     }
   })
 
+  // 去掉系统菜单后 DevTools 快捷键也跟着没了，这里补回 F12 / Ctrl+Shift+I
+  win.webContents.on('before-input-event', (event, input) => {
+    if (input.type !== 'keyDown') return
+    const wantsDevTools =
+      input.key === 'F12' ||
+      (input.control && input.shift && input.key.toLowerCase() === 'i')
+    if (!wantsDevTools) return
+    win.webContents.toggleDevTools()
+    event.preventDefault()
+  })
+
   win.loadFile('index.html')
 }
 
@@ -236,7 +247,11 @@ ipcMain.handle('agent:chat:stream', (event, { message, modelId, requestId }) => 
   })
 })
 
-app.whenReady().then(createWindow)
+app.whenReady().then(() => {
+  // 不显示窗口顶部的系统菜单栏（File / Edit / View / Window / Help）
+  Menu.setApplicationMenu(null)
+  createWindow()
+})
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
