@@ -1,2 +1,10 @@
 **/blobs
 **/sandbox_runs
+**/node_modules
+**/__pycache__
+
+# 后端 SQLite 本地数据
+**/data/*.db
+**/data/*.db-journal
+**/data/*.db-wal
+**/data/*.db-shm
