@@ -258,10 +258,9 @@ def build_context(turns: list, budget: int = 1200) -> list:
     return out
 
 
-# api_key = os.getenv("DEEPSEEK_API_KEY")
-# if not api_key:
-#     raise RuntimeError("没读到 DEEPSEEK_API_KEY，先设置环境变量再跑")
-api_key = "sk-90a43801ee0c4b4baf72d95bdfc7fa33"
+api_key = os.getenv("DEEPSEEK_API_KEY")
+if not api_key:
+    raise RuntimeError("没读到 DEEPSEEK_API_KEY，先设置环境变量再跑")
 client = OpenAI(api_key=api_key, base_url="https://api.deepseek.com")
 
 
